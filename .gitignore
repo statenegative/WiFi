@@ -25,4 +25,5 @@ replay_pid*
 
 # Project files
 /bin/
+/run.sh
 /build.sh

@@ -1,0 +1,1 @@
+Check that frame number is <= 12 bits.

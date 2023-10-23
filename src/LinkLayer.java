@@ -119,10 +119,15 @@ public class LinkLayer implements Dot11Interface {
         // Summarize command options
         case 0:
             this.output.printf("Command 0: Summarize all command options and report their current settings\n"
-                + "Command 1: Debug options\n\tValue 0: Disable debugging\n\tValue 1: Enable all debugging\n"
-                + "Command 2: Slot selection\n\tValue 0: Slots are selected randomly\n\tFor any other value, maxCW is selected\n"
-                + "Command 3: Beacon interval\n\tValue -1: Sending beacon frames is disabled\n"
-                + "\tAny other value specifies the number of seconds between the start of beacon transmissions\n");
+                + "Command 1: Debug options\n"
+                    + "\tValue 0: Disable debugging\n"
+                    + "\tValue 1: Enable all debugging\n"
+                + "Command 2: Slot selection\n"
+                    + "\tValue 0: Slots are selected randomly\n"
+                    + "\tFor any other value, maxCW is selected\n"
+                + "Command 3: Beacon interval\n"
+                    + "\tValue -1: Sending beacon frames is disabled\n"
+                    + "\tAny other (nonnegative) value specifies the number of seconds between the start of beacon transmissions\n");
             break;
 
         // Debug options

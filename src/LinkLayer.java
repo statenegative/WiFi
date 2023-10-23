@@ -1,5 +1,7 @@
 package wifi;
+
 import java.io.PrintWriter;
+import java.util.NoSuchElementException;
 
 import rf.RF;
 
@@ -90,7 +92,8 @@ public class LinkLayer implements Dot11Interface {
      */
     public int send(short dest, byte[] data, int len) {
         output.println("LinkLayer: Sending "+len+" bytes to "+dest);
-        rf.transmit(data);
+        this.rf.transmit(data);
+
         return len;
     }
 
@@ -100,8 +103,15 @@ public class LinkLayer implements Dot11Interface {
      */
     public int recv(Transmission t) {
         output.println("LinkLayer: Pretending to block on recv()");
-        while(true); // <--- This is a REALLY bad way to wait.  Sleep a little each time through.
-        // return 0;
+        while (true) {
+            Packet packet;
+            try {
+                packet = new Packet(this.rf.receive());
+                output.println(packet);
+            } catch (NoSuchElementException e) {
+                output.println("Malformed packet received");
+            }
+        }
     }
 
     /**

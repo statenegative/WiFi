@@ -20,20 +20,27 @@ public class Packet {
 
     /** Describes the packet's frame type. */
     public enum FrameType {
-        DATA(0b000),
-        ACK(0b001),
-        BEACON(0b010),
-        CTS(0b100),
-        RTS(0b101);
+        DATA(0b000, "DATA"),
+        ACK(0b001, "ACK"),
+        BEACON(0b010, "BEACON"),
+        CTS(0b100, "CTS"),
+        RTS(0b101, "RTS");
 
         private final int value;
-
-        private FrameType(int value) {
-            this.value = value;
-        }
+        private final String name;
 
         public static Optional<FrameType> valueOf(int value) {
             return Arrays.stream(values()).filter(type -> type.value == value).findFirst();
+        }
+
+        @Override
+        public String toString() {
+            return this.name;
+        }
+
+        private FrameType(int value, String name) {
+            this.value = value;
+            this.name = name;
         }
     }
 
@@ -77,13 +84,26 @@ public class Packet {
         this.destAddr = this.frame.getShort();
         this.srcAddr = this.frame.getShort();
         this.data = new byte[frame.length - 10];
-        this.frame.get(this.data, 6, this.data.length);
-        this.crc = this.frame.getInt(6 + this.data.length);
+        this.frame.get(this.data);
+        this.crc = this.frame.getInt();
 
         // Parse control field
         this.type = Packet.getFrameType(control);
         this.retransmission = Packet.getRetransmission(control);
         this.frameNumber = Packet.getFrameNumber(control);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder("[[");
+        sb.append(this.type + ", ");
+        sb.append(this.retransmission + ", ");
+        sb.append(this.frameNumber + "], [");
+        sb.append(this.destAddr + ", ");
+        sb.append(this.srcAddr + "], [");
+        sb.append(this.data.length + "b...], ");
+        sb.append(this.crc + "]");
+        return sb.toString();
     }
 
     /**

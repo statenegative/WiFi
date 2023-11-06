@@ -93,6 +93,42 @@ public class Packet {
         this.frameNumber = Packet.getFrameNumber(control);
     }
 
+    /**
+     * destAddr getter.
+     * @return destAddr.
+     */
+    public short getDestAddr() {
+        return this.destAddr;
+    }
+
+    /**
+     * srcAddr getter.
+     * @return srcAddr.
+     */
+    public short getSrcAddr() {
+        return this.srcAddr;
+    }
+
+    /**
+     * data getter.
+     * @return data.
+     */
+    public byte[] getData() {
+        return this.data;
+    }
+
+    /**
+     * Gets the byte representation of the entire packet.
+     * @return The packet's bytes.
+     */
+    public byte[] getBytes() {
+        return this.frame.array();
+    }
+
+    /**
+     * Creates a string representation of the packet.
+     * @return String representation of the packet.
+     */
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("[[");

@@ -25,6 +25,8 @@ public class LinkLayer implements Dot11Interface {
     private boolean randomSlotSelection;
     // Beacon interval
     private int beaconInterval;
+    // Current frame number
+    private short frameNumber;
 
     // Status code names with their associated values
     private enum Status {
@@ -61,6 +63,8 @@ public class LinkLayer implements Dot11Interface {
     private enum DebugLevel {
         // Don't print any debug messages
         NONE,
+        // Only print errors
+        ERRORS,
         // Print all debug messages
         FULL
     }
@@ -75,8 +79,10 @@ public class LinkLayer implements Dot11Interface {
         this.mac = mac;
         this.output = output;      
         this.status = Status.SUCCESS;
-        this.debugLevel = DebugLevel.NONE;
+        this.debugLevel = DebugLevel.FULL;
         this.randomSlotSelection = false;
+        this.beaconInterval = 0;
+        this.frameNumber = 0;
 
         // Create RF Layer
         try {
@@ -91,8 +97,16 @@ public class LinkLayer implements Dot11Interface {
      * of bytes to send.  See docs for full description.
      */
     public int send(short dest, byte[] data, int len) {
-        output.println("LinkLayer: Sending "+len+" bytes to "+dest);
-        this.rf.transmit(data);
+        if (this.debugLevel == DebugLevel.FULL) {
+            this.output.println("LinkLayer: Sending " + len + " bytes to " + dest);
+        }
+
+        // Build packet
+        // TODO: Make all of these params be correct (frame type, crc)
+        Packet packet = new Packet(Packet.FrameType.DATA, false, this.nextFrameNumber(), dest, this.mac, data, 0);
+
+        // Transmit data
+        this.rf.transmit(packet.getBytes());
 
         return len;
     }
@@ -102,15 +116,36 @@ public class LinkLayer implements Dot11Interface {
      * the Transmission object.  See docs for full description.
      */
     public int recv(Transmission t) {
-        output.println("LinkLayer: Pretending to block on recv()");
-        while (true) {
-            Packet packet;
-            try {
-                packet = new Packet(this.rf.receive());
-                output.println(packet);
-            } catch (NoSuchElementException e) {
-                output.println("Malformed packet received");
+        Packet packet;
+        try {
+            // Receive packet
+            packet = new Packet(this.rf.receive());
+
+            t.setBuf(packet.getData());
+            t.setDestAddr(packet.getDestAddr());
+            t.setSourceAddr(packet.getSrcAddr());
+
+            /*
+            if (packet.getDestAddr() == this.mac) {
+                this.output.println(packet);
+            } else if (this.debugLevel == DebugLevel.FULL) {
+                this.output.println("Detected packet for " + packet.getDestAddr());
             }
+            */
+
+            // Send acknowledgement
+            /*
+            Acknowledgement ack = new Acknowledgement(rf);
+            new Thread(ack).start();
+            */
+
+            return packet.getData().length;
+        } catch (NoSuchElementException e) {
+            if (this.debugLevel == DebugLevel.ERRORS || this.debugLevel == DebugLevel.FULL) {
+                this.output.println("Malformed packet received");
+            }
+
+            return -1;
         }
     }
 
@@ -131,7 +166,8 @@ public class LinkLayer implements Dot11Interface {
             this.output.printf("Command 0: Summarize all command options and report their current settings\n"
                 + "Command 1: Debug options\n"
                     + "\tValue 0: Disable debugging\n"
-                    + "\tValue 1: Enable all debugging\n"
+                    + "\tValue 1: Enable only error messages\n"
+                    + "\tValue 2: Enable all debugging\n"
                 + "Command 2: Slot selection\n"
                     + "\tValue 0: Slots are selected randomly\n"
                     + "\tFor any other value, maxCW is selected\n"
@@ -147,6 +183,8 @@ public class LinkLayer implements Dot11Interface {
                 this.debugLevel = DebugLevel.NONE;
                 break;
             case 1:
+                this.debugLevel = DebugLevel.ERRORS;
+            case 2:
                 this.debugLevel = DebugLevel.FULL;
                 break;
             default:
@@ -176,5 +214,11 @@ public class LinkLayer implements Dot11Interface {
         }
 
         return 0;
+    }
+
+    private short nextFrameNumber() {
+        short frameNumber = this.frameNumber;
+        ++this.frameNumber;
+        return frameNumber;
     }
 }

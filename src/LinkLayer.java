@@ -101,14 +101,19 @@ public class LinkLayer implements Dot11Interface {
             this.output.println("LinkLayer: Sending " + len + " bytes to " + dest);
         }
 
+        // Handle len parameter
+        int dataLen = Math.min(data.length, len);
+        byte[] trimmedData = new byte[dataLen];
+        System.arraycopy(data, 0, trimmedData, 0, dataLen);
+
         // Build packet
         // TODO: Make all of these params be correct (frame type, crc)
-        Packet packet = new Packet(Packet.FrameType.DATA, false, this.nextFrameNumber(), dest, this.mac, data, 0);
+        Packet packet = new Packet(Packet.FrameType.DATA, false, this.nextFrameNumber(), dest, this.mac, trimmedData, 0xFFFF);
 
-        // Transmit data
-        this.rf.transmit(packet.getBytes());
+        Sender sender = new Sender(this.rf, packet);
+        new Thread(sender).start();
 
-        return len;
+        return dataLen;
     }
 
     /**
@@ -118,27 +123,29 @@ public class LinkLayer implements Dot11Interface {
     public int recv(Transmission t) {
         Packet packet;
         try {
-            // Receive packet
-            packet = new Packet(this.rf.receive());
+            boolean packetArrived = false;
+            do {
+                // Receive packet
+                packet = new Packet(this.rf.receive());
 
-            t.setBuf(packet.getData());
-            t.setDestAddr(packet.getDestAddr());
-            t.setSourceAddr(packet.getSrcAddr());
+                if (packet.getDestAddr() == this.mac) {
+                    // Set flag to terminate loop
+                    packetArrived = true;
 
-            /*
-            if (packet.getDestAddr() == this.mac) {
-                this.output.println(packet);
-            } else if (this.debugLevel == DebugLevel.FULL) {
-                this.output.println("Detected packet for " + packet.getDestAddr());
-            }
-            */
+                    // Pass data to transmission
+                    t.setBuf(packet.getData());
+                    t.setDestAddr(packet.getDestAddr());
+                    t.setSourceAddr(packet.getSrcAddr());
 
-            // Send acknowledgement
-            /*
-            Acknowledgement ack = new Acknowledgement(rf);
-            new Thread(ack).start();
-            */
+                    // Send acknowledgement
+                    /*
+                    Acknowledgement ack = new Acknowledgement(rf);
+                    new Thread(ack).start();
+                    */
+                }
+            } while (!packetArrived);
 
+            // Return packet data size
             return packet.getData().length;
         } catch (NoSuchElementException e) {
             if (this.debugLevel == DebugLevel.ERRORS || this.debugLevel == DebugLevel.FULL) {

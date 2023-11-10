@@ -13,6 +13,8 @@ import rf.RF;
 public class LinkLayer implements Dot11Interface {
     // RF layer
     private RF rf;
+    // Sender thread
+    private Sender sender;
     // MAC address
     private short mac;
     // Output stream to write to
@@ -90,6 +92,10 @@ public class LinkLayer implements Dot11Interface {
         } catch (Exception e) {
             this.status = Status.RF_INIT_FAILED;
         }
+
+        // Create sender
+        this.sender = new Sender(this.rf);
+        new Thread(sender).start();
     }
 
     /**
@@ -110,8 +116,7 @@ public class LinkLayer implements Dot11Interface {
         // TODO: Make all of these params be correct (frame type, crc)
         Packet packet = new Packet(Packet.FrameType.DATA, false, this.nextFrameNumber(), dest, this.mac, trimmedData, 0xFFFF);
 
-        Sender sender = new Sender(this.rf, packet);
-        new Thread(sender).start();
+        this.sender.send(packet);
 
         return dataLen;
     }

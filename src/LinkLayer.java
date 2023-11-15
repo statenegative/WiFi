@@ -100,7 +100,7 @@ public class LinkLayer implements Dot11Interface {
         new Thread(this.sender).start();
 
         // Create receiver
-        this.receiver = new Receiver(this.rf, this.mac);
+        this.receiver = new Receiver(this.rf, this.mac, this.sender);
         new Thread(this.receiver).start();
     }
 

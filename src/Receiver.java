@@ -8,21 +8,27 @@ import rf.RF;
  * Handles receiving packets and sending acknowledgements.
  */
 public class Receiver implements Runnable {
-    private static final short BROADCAST_ADDR = (short)0xFFFF;
     private RF rf;
     private short mac;
+    private Sender sender;
     private boolean stop;
     private LinkedBlockingQueue<Packet> packetQueue;
+    private Acknowledger acknowledger;
 
     /**
      * Constructor.
      * @param rf The RF layer to listen and send on.
      */
-    public Receiver(RF rf, short mac) {
+    public Receiver(RF rf, short mac, Sender sender) {
         this.rf = rf;
         this.mac = mac;
-        this.packetQueue = new LinkedBlockingQueue<>();
+        this.sender = sender;
         this.stop = false;
+        this.packetQueue = new LinkedBlockingQueue<>();
+        
+        // Create acknowledger thread
+        this.acknowledger = new Acknowledger(this.rf);
+        new Thread(this.acknowledger).start();
     }
 
     /**
@@ -34,9 +40,20 @@ public class Receiver implements Runnable {
             Packet packet = new Packet(this.rf.receive());
 
             // Ignore packets that aren't for this destination
-            if (packet.getDestAddr() == Receiver.BROADCAST_ADDR || packet.getDestAddr() == this.mac) {
+            if (packet.isBroadcast() || packet.getDestAddr() == this.mac) {
                 try {
-                    packetQueue.put(packet);
+                    if (packet.getFrameType() == Packet.FrameType.ACK) {
+                        this.sender.setAcknowledgement(packet);
+                    } else {
+                        packetQueue.put(packet);
+
+                        // Send acknowledgement
+                        if (!packet.isBroadcast()) {
+                            Packet ack = new Packet(Packet.FrameType.ACK, false,
+                                packet.getFrameNumber(), packet.getSrcAddr(), packet.getDestAddr(), new byte[0], -1);
+                            this.acknowledger.send(ack);
+                        }
+                    }
                 } catch (InterruptedException e) {}
             }
         }
@@ -60,5 +77,6 @@ public class Receiver implements Runnable {
      */
     public void stop() {
         this.stop = true;
+        this.acknowledger.stop();
     }
 }

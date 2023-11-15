@@ -9,6 +9,8 @@ import java.util.NoSuchElementException;
  * 802.11~ packet.
  */
 public class Packet {
+    private static final short BROADCAST_ADDR = (short)0xFFFF;
+
     private FrameType type;
     private boolean retransmission;
     private short frameNumber;
@@ -127,6 +129,18 @@ public class Packet {
 
     public FrameType getFrameType() {
         return this.type;
+    }
+
+    public short getFrameNumber() {
+        return this.frameNumber;
+    }
+
+    /**
+     * Checks whether this packet is a broadcast packet.
+     * @return Whether this packet is a broadcast packet.
+     */
+    public boolean isBroadcast() {
+        return this.destAddr == Packet.BROADCAST_ADDR;
     }
 
     /**

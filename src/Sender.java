@@ -2,8 +2,12 @@ package wifi;
 
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+
 import rf.RF;
 
+/**
+ * Handles sending packets.
+ */
 public class Sender implements Runnable {
     private static final int IDLE_WAIT_TIME = 50;
     private static final int PACKET_WAIT_TIME = 50;
@@ -13,6 +17,7 @@ public class Sender implements Runnable {
 
     /**
      * Constructor.
+     * @param rf The RF layer to send packets on.
      */
     public Sender(RF rf) {
         this.rf = rf;

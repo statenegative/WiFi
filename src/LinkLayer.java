@@ -15,6 +15,8 @@ public class LinkLayer implements Dot11Interface {
     private RF rf;
     // Sender thread
     private Sender sender;
+    // Receiver thread
+    private Receiver receiver;
     // MAC address
     private short mac;
     // Output stream to write to
@@ -95,7 +97,11 @@ public class LinkLayer implements Dot11Interface {
 
         // Create sender
         this.sender = new Sender(this.rf);
-        new Thread(sender).start();
+        new Thread(this.sender).start();
+
+        // Create receiver
+        this.receiver = new Receiver(this.rf, this.mac);
+        new Thread(this.receiver).start();
     }
 
     /**
@@ -128,27 +134,13 @@ public class LinkLayer implements Dot11Interface {
     public int recv(Transmission t) {
         Packet packet;
         try {
-            boolean packetArrived = false;
-            do {
-                // Receive packet
-                packet = new Packet(this.rf.receive());
+            // Receive packet
+            packet = this.receiver.recv();
 
-                if (packet.getDestAddr() == this.mac) {
-                    // Set flag to terminate loop
-                    packetArrived = true;
-
-                    // Pass data to transmission
-                    t.setBuf(packet.getData());
-                    t.setDestAddr(packet.getDestAddr());
-                    t.setSourceAddr(packet.getSrcAddr());
-
-                    // Send acknowledgement
-                    /*
-                    Acknowledgement ack = new Acknowledgement(rf);
-                    new Thread(ack).start();
-                    */
-                }
-            } while (!packetArrived);
+            // Pass data to transmission
+            t.setBuf(packet.getData());
+            t.setDestAddr(packet.getDestAddr());
+            t.setSourceAddr(packet.getSrcAddr());
 
             // Return packet data size
             return packet.getData().length;

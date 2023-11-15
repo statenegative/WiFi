@@ -88,9 +88,9 @@ public class Packet {
         this.crc = this.frame.getInt();
 
         // Parse control field
-        this.type = Packet.getFrameType(control);
-        this.retransmission = Packet.getRetransmission(control);
-        this.frameNumber = Packet.getFrameNumber(control);
+        this.type = Packet.extractFrameType(control);
+        this.retransmission = Packet.extractRetransmission(control);
+        this.frameNumber = Packet.extractFrameNumber(control);
     }
 
     /**
@@ -123,6 +123,10 @@ public class Packet {
      */
     public byte[] getBytes() {
         return this.frame.array();
+    }
+
+    public FrameType getFrameType() {
+        return this.type;
     }
 
     /**
@@ -161,7 +165,7 @@ public class Packet {
      * @param control The control field to read from.
      * @return The frame type.
      */
-    private static FrameType getFrameType(short control) throws NoSuchElementException {
+    private static FrameType extractFrameType(short control) throws NoSuchElementException {
         return FrameType.valueOf(control & 0b111).get();
     }
 
@@ -170,7 +174,7 @@ public class Packet {
      * @param control The control field to read from.
      * @return The retransmission bit.
      */
-    private static boolean getRetransmission(short control) {
+    private static boolean extractRetransmission(short control) {
         return (control >>> 3 & 0b1) == 1;
     }
 
@@ -179,7 +183,7 @@ public class Packet {
      * @param control The control field to read from.
      * @return The frame number.
      */
-    private static short getFrameNumber(short control) {
+    private static short extractFrameNumber(short control) {
         return (short)(control >>> 4);
     }
 }

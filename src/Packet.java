@@ -2,7 +2,7 @@ package wifi;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Optional;
+//import java.util.Optional;
 import java.util.NoSuchElementException;
 
 /**
@@ -31,8 +31,29 @@ public class Packet {
         private final int value;
         private final String name;
 
-        public static Optional<FrameType> valueOf(int value) {
-            return Arrays.stream(values()).filter(type -> type.value == value).findFirst();
+        //public static Optional<FrameType> valueOf(int value) {
+            //return Arrays.stream(values()).filter(type -> type.value == value).findFirst();
+        //}
+
+        public static FrameType valueOf(int value) {
+            switch (value) {
+            case 0b000:
+                return DATA;
+            case 0b001:
+                return ACK;
+            case 0b010:
+                return BEACON;
+            case 0b100:
+                return CTS;
+            case 0b101:
+                return RTS;
+            case 0b111:
+                System.err.println("FrameType 0b111 received.");
+                return DATA;
+            default:
+                System.err.println("This shouldn't be happening.");
+                return DATA;
+            }
         }
 
         @Override
@@ -54,24 +75,24 @@ public class Packet {
      * @param destAddr Destination MAC address.
      * @param srcAddr Source MAC address.
      * @param data Data being sent in the packet.
-     * @param crc CRC checksum.
      */
-    public Packet(FrameType type, boolean retransmission, short frameNumber, short destAddr, short srcAddr, byte[] data, int crc) {
+    public Packet(FrameType type, boolean retransmission, short frameNumber, short destAddr, short srcAddr, byte[] data) {
         this.type = type;
         this.retransmission = retransmission;
         this.frameNumber = frameNumber;
         this.destAddr = destAddr;
         this.srcAddr = srcAddr;
         this.data = data.clone();
+        this.crc = 0xFFFF;
 
         // Build frame
         short control = Packet.buildControlField(type, retransmission, frameNumber);
-        this.frame = ByteBuffer.allocate(10 + data.length);
+        this.frame = ByteBuffer.allocate(10 + this.data.length);
         this.frame.putShort(control);
-        this.frame.putShort(destAddr);
-        this.frame.putShort(srcAddr);
-        this.frame.put(data);
-        this.frame.putInt(crc);
+        this.frame.putShort(this.destAddr);
+        this.frame.putShort(this.srcAddr);
+        this.frame.put(this.data);
+        this.frame.putInt(this.crc);
     }
 
     /**
@@ -179,8 +200,11 @@ public class Packet {
      * @param control The control field to read from.
      * @return The frame type.
      */
+    //private static FrameType extractFrameType(short control) throws NoSuchElementException {
+    //    return FrameType.valueOf(control & 0b111).get();
+    //}
     private static FrameType extractFrameType(short control) throws NoSuchElementException {
-        return FrameType.valueOf(control & 0b111).get();
+        return FrameType.valueOf(control & 0b111);
     }
 
     /**

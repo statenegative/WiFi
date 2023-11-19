@@ -1,5 +1,6 @@
 package wifi;
 
+import java.io.PrintWriter;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import rf.RF;
@@ -14,20 +15,22 @@ public class Receiver implements Runnable {
     private boolean stop;
     private LinkedBlockingQueue<Packet> packetQueue;
     private Acknowledger acknowledger;
+    private PrintWriter output;
 
     /**
      * Constructor.
      * @param rf The RF layer to listen and send on.
      */
-    public Receiver(RF rf, short mac, Sender sender) {
+    public Receiver(RF rf, short mac, Sender sender, PrintWriter output) {
         this.rf = rf;
         this.mac = mac;
         this.sender = sender;
+        this.output = output;
         this.stop = false;
         this.packetQueue = new LinkedBlockingQueue<>();
         
         // Create acknowledger thread
-        this.acknowledger = new Acknowledger(this.rf);
+        this.acknowledger = new Acknowledger(this.rf, this.output);
         new Thread(this.acknowledger).start();
     }
 
@@ -50,7 +53,7 @@ public class Receiver implements Runnable {
                         // Send acknowledgement
                         if (!packet.isBroadcast()) {
                             Packet ack = new Packet(Packet.FrameType.ACK, false,
-                                packet.getFrameNumber(), packet.getSrcAddr(), packet.getDestAddr(), new byte[0], -1);
+                                packet.getFrameNumber(), packet.getSrcAddr(), packet.getDestAddr(), new byte[0]);
                             this.acknowledger.send(ack);
                         }
                     }
@@ -78,5 +81,15 @@ public class Receiver implements Runnable {
     public void stop() {
         this.stop = true;
         this.acknowledger.stop();
+    }
+
+    /**
+     * Sleep for a specified amount of time.
+     * @param ms The time to sleep.
+     */
+    private void sleep(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {}
     }
 }

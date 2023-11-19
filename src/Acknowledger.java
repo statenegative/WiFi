@@ -1,20 +1,23 @@
 package wifi;
 
+import java.io.PrintWriter;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import rf.RF;
 
 public class Acknowledger implements Runnable {
-    private static final int IDLE_WAIT_TIME = 50;
+    private static final long IDLE_WAIT_TIME = 50;
     private RF rf;
     private LinkedBlockingQueue<Packet> packetQueue;
     private boolean stop;
+    private PrintWriter output;
 
     /**
      * Constructor.
      */
-    public Acknowledger(RF rf) {
+    public Acknowledger(RF rf, PrintWriter output) {
         this.rf = rf;
+        this.output = output;
         this.packetQueue = new LinkedBlockingQueue<>();
         this.stop = false;
     }
@@ -40,7 +43,13 @@ public class Acknowledger implements Runnable {
                     } catch (InterruptedException e) {}
                 }
 
+                // Wait SIFS
+                this.sleep(this.rf.aSIFSTime);
+
+                this.output.println("Sending ACK " + packet.getFrameNumber() + "...");
+                this.output.flush();
                 this.rf.transmit(packet.getBytes());
+                this.output.println("ACK " + packet.getFrameNumber() + " sent.");
             }
         }
     }
@@ -60,5 +69,15 @@ public class Acknowledger implements Runnable {
      */
     public void stop() {
         this.stop = true;
+    }
+
+    /**
+     * Sleep for a specified amount of time.
+     * @param ms The time to sleep.
+     */
+    private void sleep(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {}
     }
 }

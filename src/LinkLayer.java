@@ -96,11 +96,11 @@ public class LinkLayer implements Dot11Interface {
         }
 
         // Create sender
-        this.sender = new Sender(this.rf);
+        this.sender = new Sender(this.rf, this.output);
         new Thread(this.sender).start();
 
         // Create receiver
-        this.receiver = new Receiver(this.rf, this.mac, this.sender);
+        this.receiver = new Receiver(this.rf, this.mac, this.sender, this.output);
         new Thread(this.receiver).start();
     }
 
@@ -120,7 +120,7 @@ public class LinkLayer implements Dot11Interface {
 
         // Build packet
         // TODO: Make all of these params be correct (frame type, crc)
-        Packet packet = new Packet(Packet.FrameType.DATA, false, this.nextFrameNumber(), dest, this.mac, trimmedData, 0xFFFF);
+        Packet packet = new Packet(Packet.FrameType.DATA, false, this.nextFrameNumber(), dest, this.mac, trimmedData);
 
         this.sender.send(packet);
 

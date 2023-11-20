@@ -16,7 +16,7 @@ public class Sender implements Runnable {
     // The time we wait between checking if an acknowledgement has arrived
     private static final long ACK_WAIT_TIME = 50;
     // The total time we wait for an acknowledgement to arrive before it times out
-    private static final long TIMEOUT_DURATION = 5000;
+    private static final long TIMEOUT_DURATION = 15_000;
     // DIFS wait time
     private final long DIFS;
     // Output stream to write to
@@ -63,13 +63,11 @@ public class Sender implements Runnable {
             boolean transmitted;
             do {
                 // Check whether channel is busy
-                this.output.println("Begin waiting for channel to be free.");
                 boolean busy = this.busyWait();
 
                 // Do exponential backoff
                 if (busy) {
                     for (int count = new Random().nextInt(cw + 1); count > 0; count--) {
-                        this.output.println("Began slot waiting.");
                         // Slot wait
                         this.sleep(this.rf.aSlotTime);
 
@@ -81,14 +79,10 @@ public class Sender implements Runnable {
                 }
 
                 // Transmit packet
-                this.output.println("Sending packet " + packet.getFrameNumber() + "...");
-                this.output.flush();
                 transmitted = this.transmit(packet);
 
                 // If acknowledgement wasn't received
                 if (!transmitted) {
-                    this.output.println("Timed out. Resending.");
-
                     // Rebuild packet with retransmission bit
                     packet = new Packet(packet.getFrameType(), true, packet.getFrameNumber(),
                         packet.getDestAddr(), packet.getSrcAddr(), packet.getData());
@@ -101,8 +95,6 @@ public class Sender implements Runnable {
 
                     // Increment retry counter
                     retryCount++;
-                } else {
-                    this.output.println("ACK received.");
                 }
             } while (!transmitted && retryCount < this.rf.dot11RetryLimit);
         }
@@ -165,7 +157,6 @@ public class Sender implements Runnable {
         boolean busy = false;
         boolean idle;
         do {
-            this.output.println("Waited in busyWait.");
             // Wait for idle
             while (this.rf.inUse()) {
                 busy = true;

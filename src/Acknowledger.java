@@ -36,20 +36,10 @@ public class Acknowledger implements Runnable {
 
             // Transmit packet
             if (packet != null) {
-                // Wait for channel to become idle
-                while (this.rf.inUse()) {
-                    try {
-                        Thread.sleep(Acknowledger.IDLE_WAIT_TIME);
-                    } catch (InterruptedException e) {}
-                }
-
                 // Wait SIFS
                 this.sleep(this.rf.aSIFSTime);
 
-                this.output.println("Sending ACK " + packet.getFrameNumber() + "...");
-                this.output.flush();
                 this.rf.transmit(packet.getBytes());
-                this.output.println("ACK " + packet.getFrameNumber() + " sent.");
             }
         }
     }

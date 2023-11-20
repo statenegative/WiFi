@@ -2,6 +2,7 @@ package wifi;
 
 import java.io.PrintWriter;
 import java.util.NoSuchElementException;
+import java.util.HashMap;
 
 import rf.RF;
 
@@ -29,8 +30,8 @@ public class LinkLayer implements Dot11Interface {
     private boolean randomSlotSelection;
     // Beacon interval
     private int beaconInterval;
-    // Current frame number
-    private short frameNumber;
+    // Current frame number for each destination
+    private HashMap<Short, Short> frameNumbers;
 
     // Status code names with their associated values
     private enum Status {
@@ -83,10 +84,10 @@ public class LinkLayer implements Dot11Interface {
         this.mac = mac;
         this.output = output;      
         this.status = Status.SUCCESS;
-        this.debugLevel = DebugLevel.FULL;
+        this.debugLevel = DebugLevel.ERRORS;
         this.randomSlotSelection = false;
         this.beaconInterval = 0;
-        this.frameNumber = 0;
+        this.frameNumbers = new HashMap<>();
 
         // Create RF Layer
         try {
@@ -113,6 +114,15 @@ public class LinkLayer implements Dot11Interface {
             this.output.println("LinkLayer: Sending " + len + " bytes to " + dest);
         }
 
+        // Determine frame number
+        short frameNumber;
+        if (this.frameNumbers.containsKey(dest)) {
+            frameNumber = (short)(this.frameNumbers.get(dest) + 1);
+        } else {
+            frameNumber = 0;
+        }
+        this.frameNumbers.put(dest, frameNumber);
+
         // Handle len parameter
         int dataLen = Math.min(data.length, len);
         byte[] trimmedData = new byte[dataLen];
@@ -120,7 +130,7 @@ public class LinkLayer implements Dot11Interface {
 
         // Build packet
         // TODO: Make all of these params be correct (frame type, crc)
-        Packet packet = new Packet(Packet.FrameType.DATA, false, this.nextFrameNumber(), dest, this.mac, trimmedData);
+        Packet packet = new Packet(Packet.FrameType.DATA, false, frameNumber, dest, this.mac, trimmedData);
 
         this.sender.send(packet);
 
@@ -218,11 +228,5 @@ public class LinkLayer implements Dot11Interface {
         }
 
         return 0;
-    }
-
-    private short nextFrameNumber() {
-        short frameNumber = this.frameNumber;
-        ++this.frameNumber;
-        return frameNumber;
     }
 }

@@ -2,7 +2,7 @@ package wifi;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-//import java.util.Optional;
+import java.util.Optional;
 import java.util.NoSuchElementException;
 
 /**
@@ -31,29 +31,8 @@ public class Packet {
         private final int value;
         private final String name;
 
-        //public static Optional<FrameType> valueOf(int value) {
-            //return Arrays.stream(values()).filter(type -> type.value == value).findFirst();
-        //}
-
-        public static FrameType valueOf(int value) {
-            switch (value) {
-            case 0b000:
-                return DATA;
-            case 0b001:
-                return ACK;
-            case 0b010:
-                return BEACON;
-            case 0b100:
-                return CTS;
-            case 0b101:
-                return RTS;
-            case 0b111:
-                System.err.println("FrameType 0b111 received.");
-                return DATA;
-            default:
-                System.err.println("This shouldn't be happening.");
-                return DATA;
-            }
+        public static Optional<FrameType> valueOf(int value) {
+            return Arrays.stream(values()).filter(type -> type.value == value).findFirst();
         }
 
         @Override
@@ -99,7 +78,7 @@ public class Packet {
      * Incoming packet constructor.
      * @param frame Raw data of the frame.
      */
-    public Packet(byte[] frame) throws NoSuchElementException {
+    public Packet(byte[] frame) {
         this.frame = ByteBuffer.wrap(frame);
 
         // Parse frame
@@ -189,10 +168,9 @@ public class Packet {
      * @return The constructed control field.
      */
     private static short buildControlField(FrameType type, boolean retransmission, short frameNumber) {
-        int typeBits = type.value;
-        int rtBit = (retransmission ? 1 : 0) & 0b1 << 3;
-        int frameNumBits = frameNumber << 4;
-        return (short)(typeBits + rtBit + frameNumBits);
+        int rtBit = (retransmission ? 1 : 0) << 12;
+        int typeBits = type.value << 13;
+        return (short)(frameNumber + rtBit + typeBits);
     }
 
     /**
@@ -200,11 +178,14 @@ public class Packet {
      * @param control The control field to read from.
      * @return The frame type.
      */
-    //private static FrameType extractFrameType(short control) throws NoSuchElementException {
-    //    return FrameType.valueOf(control & 0b111).get();
-    //}
-    private static FrameType extractFrameType(short control) throws NoSuchElementException {
-        return FrameType.valueOf(control & 0b111);
+    private static FrameType extractFrameType(short control) {
+        FrameType type;
+        try {
+            type = FrameType.valueOf((control >>> 13) & 0b111).get();
+        } catch (NoSuchElementException e) {
+            type = FrameType.DATA;
+        }
+        return type;
     }
 
     /**
@@ -213,7 +194,7 @@ public class Packet {
      * @return The retransmission bit.
      */
     private static boolean extractRetransmission(short control) {
-        return (control >>> 3 & 0b1) == 1;
+        return ((control >>> 12) & 0b1) == 1;
     }
 
     /**
@@ -222,6 +203,6 @@ public class Packet {
      * @return The frame number.
      */
     private static short extractFrameNumber(short control) {
-        return (short)(control >>> 4);
+        return (short)(control & 0b1111_1111_1111);
     }
 }

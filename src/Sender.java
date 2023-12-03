@@ -57,7 +57,7 @@ public class Sender implements Runnable {
             } catch (InterruptedException e) {}
 
             // Set initial contention window
-            int cw = this.rf.aCWmin;
+            int cw = this.rf.aCWmin + 1;
 
             // Transmit packet
             boolean transmitted;
@@ -67,7 +67,7 @@ public class Sender implements Runnable {
 
                 // Do exponential backoff
                 if (busy) {
-                    for (int count = new Random().nextInt(cw + 1); count > 0; count--) {
+                    for (int count = new Random().nextInt(cw); count > 0; count--) {
                         // Slot wait
                         this.sleep(this.rf.aSlotTime);
 
@@ -89,8 +89,8 @@ public class Sender implements Runnable {
 
                     // Double contention window
                     cw *= 2;
-                    if (cw > this.rf.aCWmax) {
-                        cw = this.rf.aCWmax;
+                    if (cw > this.rf.aCWmax + 1) {
+                        cw = this.rf.aCWmax + 1;
                     }
 
                     // Increment retry counter

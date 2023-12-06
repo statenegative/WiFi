@@ -12,6 +12,7 @@ public class Receiver implements Runnable {
     private RF rf;
     private short mac;
     private Sender sender;
+    private Clock clock;
     private boolean stop;
     private LinkedBlockingQueue<Packet> packetQueue;
     private Acknowledger acknowledger;
@@ -21,10 +22,11 @@ public class Receiver implements Runnable {
      * Constructor.
      * @param rf The RF layer to listen and send on.
      */
-    public Receiver(RF rf, short mac, Sender sender, PrintWriter output) {
+    public Receiver(RF rf, short mac, Sender sender, Clock clock, PrintWriter output) {
         this.rf = rf;
         this.mac = mac;
         this.sender = sender;
+        this.clock = clock;
         this.output = output;
         this.stop = false;
         this.packetQueue = new LinkedBlockingQueue<>();
@@ -41,17 +43,27 @@ public class Receiver implements Runnable {
     public void run() {
         while (!this.stop) {
             Packet packet = new Packet(this.rf.receive());
+            if (packet.getFrameType() != Packet.FrameType.ACK) {
+                this.output.println("Received packet from " + packet.getSrcAddr());
+            } else {
+                this.output.println("Received ACK from " + packet.getSrcAddr());
+            }
+
+            // Handle checksum
 
             // Ignore packets that aren't for this destination
             if (packet.isBroadcast() || packet.getDestAddr() == this.mac) {
                 try {
                     if (packet.getFrameType() == Packet.FrameType.ACK) {
                         this.sender.setAcknowledgement(packet);
+                    } else if (packet.getFrameType() == Packet.FrameType.BEACON) {
+                        //this.clock.receiveFrame(packet);
                     } else {
                         packetQueue.put(packet);
 
                         // Send acknowledgement
                         if (!packet.isBroadcast()) {
+                            output.println("Sending ACK " + packet.getFrameNumber());
                             Packet ack = new Packet(Packet.FrameType.ACK, false,
                                 packet.getFrameNumber(), packet.getSrcAddr(), packet.getDestAddr(), new byte[0]);
                             this.acknowledger.send(ack);

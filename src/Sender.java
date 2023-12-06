@@ -2,6 +2,7 @@ package wifi;
 
 import java.io.PrintWriter;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.HashSet;
 import java.util.Random;
 
@@ -21,22 +22,29 @@ public class Sender implements Runnable {
     private final long DIFS;
     // Output stream to write to
     private PrintWriter output;
-
+    // Whether slot selection is fixed or random
+    boolean randomSlotSelection;
+    
     private RF rf;
+    private Clock clock;
     private LinkedBlockingQueue<Packet> packetQueue;
     private boolean stop;
     private Packet ack;
+    private Packet beacon;
 
     /**
      * Constructor.
      * @param rf The RF layer to send packets on.
      */
-    public Sender(RF rf, PrintWriter output) {
+    public Sender(RF rf, Clock clock, PrintWriter output) {
         this.rf = rf;
+        this.clock = clock;
         this.output = output;
         this.packetQueue = new LinkedBlockingQueue<>();
         this.stop = false;
         this.ack = null;
+        this.beacon = null;
+        this.randomSlotSelection = true;
 
         // Define wait time value
         this.DIFS = this.rf.aSIFSTime + 2 * this.rf.aSlotTime;
@@ -52,9 +60,19 @@ public class Sender implements Runnable {
         while (!this.stop) {
             // Check for packet
             Packet packet = null;
-            try {
-                packet = this.packetQueue.take();
-            } catch (InterruptedException e) {}
+
+            // Get beacon frame if ready
+            if (this.clock.frameReady()) {
+                packet = this.clock.getFrame();
+            } else {
+                try {
+                    packet = this.packetQueue.poll(50, TimeUnit.MILLISECONDS);
+                    // :)
+                    if (packet == null) {
+                        continue;
+                    }
+                } catch (InterruptedException e) {}
+            }
 
             // Set initial contention window
             int cw = this.rf.aCWmin + 1;
@@ -67,7 +85,15 @@ public class Sender implements Runnable {
 
                 // Do exponential backoff
                 if (busy) {
-                    for (int count = new Random().nextInt(cw); count > 0; count--) {
+                    // Select slot wait time
+                    int count;
+                    if (this.randomSlotSelection) {
+                        count = new Random().nextInt(cw);
+                    } else {
+                        count = cw - 1;
+                    }
+
+                    for (; count > 0; count--) {
                         // Slot wait
                         this.sleep(this.rf.aSlotTime);
 
@@ -79,10 +105,12 @@ public class Sender implements Runnable {
                 }
 
                 // Transmit packet
+                this.output.println("Transmitting packet " + packet.getFrameNumber());
                 transmitted = this.transmit(packet);
 
                 // If acknowledgement wasn't received
                 if (!transmitted) {
+                    this.output.println("Packet " + packet.getFrameNumber() + " timed out");
                     // Rebuild packet with retransmission bit
                     packet = new Packet(packet.getFrameType(), true, packet.getFrameNumber(),
                         packet.getDestAddr(), packet.getSrcAddr(), packet.getData());
@@ -103,11 +131,18 @@ public class Sender implements Runnable {
     /**
      * Queues a packet to be sent.
      * @param packet The packet to send.
+     * @return Whether the packet was successfully queued to be sent.
      */
-    public void send(Packet packet) {
+    public boolean send(Packet packet) {
+        if (this.packetQueue.size() >= 4) {
+            return false;
+        }
+
         try {
             this.packetQueue.put(packet);
         } catch (InterruptedException e) {}
+
+        return true;
     }
 
     /**
@@ -123,6 +158,10 @@ public class Sender implements Runnable {
      */
     public void stop() {
         this.stop = true;
+    }
+
+    public void setSlotSelection(boolean randomSlotSelection) {
+        this.randomSlotSelection = randomSlotSelection;
     }
 
     /**
@@ -163,8 +202,10 @@ public class Sender implements Runnable {
                 this.sleep(Sender.IDLE_WAIT_TIME);
             }
 
-            // Wait DIFS
-            this.sleep(this.DIFS);
+            // Wait DIFS (rounded up to 50ms boundaries)
+            long currTime = this.clock.getTime() % 50;
+            long waitTime = this.DIFS + (50 - currTime);
+            this.sleep(waitTime);
 
             // Check if still idle
             idle = !this.rf.inUse();

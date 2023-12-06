@@ -11,14 +11,14 @@ import java.util.NoSuchElementException;
 public class Packet {
     private static final short BROADCAST_ADDR = (short)0xFFFF;
 
-    private FrameType type;
-    private boolean retransmission;
-    private short frameNumber;
-    private short destAddr;
-    private short srcAddr;
-    private byte[] data;
-    private int crc;
-    private ByteBuffer frame;
+    private final FrameType type;
+    private final boolean retransmission;
+    private final short frameNumber;
+    private final short destAddr;
+    private final short srcAddr;
+    private final byte[] data;
+    private final int crc;
+    private final ByteBuffer frame;
 
     /** Describes the packet's frame type. */
     public enum FrameType {
@@ -66,12 +66,14 @@ public class Packet {
 
         // Build frame
         short control = Packet.buildControlField(type, retransmission, frameNumber);
-        this.frame = ByteBuffer.allocate(10 + this.data.length);
-        this.frame.putShort(control);
-        this.frame.putShort(this.destAddr);
-        this.frame.putShort(this.srcAddr);
-        this.frame.put(this.data);
-        this.frame.putInt(this.crc);
+        ByteBuffer frame;
+        frame = ByteBuffer.allocate(10 + this.data.length);
+        frame.putShort(control);
+        frame.putShort(this.destAddr);
+        frame.putShort(this.srcAddr);
+        frame.put(this.data);
+        frame.putInt(this.crc);
+        this.frame = frame;
     }
 
     /**
@@ -85,8 +87,9 @@ public class Packet {
         short control = this.frame.getShort();
         this.destAddr = this.frame.getShort();
         this.srcAddr = this.frame.getShort();
-        this.data = new byte[frame.length - 10];
-        this.frame.get(this.data);
+        byte[] data = new byte[frame.length - 10];
+        this.frame.get(data);
+        this.data = data;
         this.crc = this.frame.getInt();
 
         // Parse control field

@@ -14,6 +14,8 @@ import rf.RF;
 public class LinkLayer implements Dot11Interface {
     // RF layer
     private RF rf;
+    // Clock object
+    private Clock clock;
     // Sender thread
     private Sender sender;
     // Receiver thread
@@ -28,8 +30,6 @@ public class LinkLayer implements Dot11Interface {
     private DebugLevel debugLevel;
     // Whether to select random slots
     private boolean randomSlotSelection;
-    // Beacon interval
-    private int beaconInterval;
     // Current frame number for each destination
     private HashMap<Short, Short> frameNumbers;
 
@@ -82,11 +82,10 @@ public class LinkLayer implements Dot11Interface {
      */
     public LinkLayer(short mac, PrintWriter output) {
         this.mac = mac;
-        this.output = output;      
+        this.output = output;
         this.status = Status.SUCCESS;
-        this.debugLevel = DebugLevel.ERRORS;
-        this.randomSlotSelection = false;
-        this.beaconInterval = 0;
+        this.debugLevel = DebugLevel.FULL;
+        this.randomSlotSelection = true;
         this.frameNumbers = new HashMap<>();
 
         // Create RF Layer
@@ -96,12 +95,15 @@ public class LinkLayer implements Dot11Interface {
             this.status = Status.RF_INIT_FAILED;
         }
 
+        // Create clock
+        this.clock = new Clock(this.rf, 10_000, this.mac);
+
         // Create sender
-        this.sender = new Sender(this.rf, this.output);
+        this.sender = new Sender(this.rf, this.clock, this.output);
         new Thread(this.sender).start();
 
         // Create receiver
-        this.receiver = new Receiver(this.rf, this.mac, this.sender, this.output);
+        this.receiver = new Receiver(this.rf, this.mac, this.sender, this.clock, this.output);
         new Thread(this.receiver).start();
     }
 
@@ -110,6 +112,12 @@ public class LinkLayer implements Dot11Interface {
      * of bytes to send.  See docs for full description.
      */
     public int send(short dest, byte[] data, int len) {
+        // Check buffer size
+        if (len < 0) {
+            this.status = Status.BAD_BUF_SIZE;
+            return 0;
+        }
+
         if (this.debugLevel == DebugLevel.FULL) {
             this.output.println("LinkLayer: Sending " + len + " bytes to " + dest);
         }
@@ -132,8 +140,12 @@ public class LinkLayer implements Dot11Interface {
         // TODO: Make all of these params be correct (frame type, crc)
         Packet packet = new Packet(Packet.FrameType.DATA, false, frameNumber, dest, this.mac, trimmedData);
 
-        this.sender.send(packet);
-
+        // Queue the packet to be transmitted
+        boolean success = this.sender.send(packet);
+        if (!success) {
+            
+            return 0;
+        }
         return dataLen;
     }
 
@@ -147,7 +159,7 @@ public class LinkLayer implements Dot11Interface {
             // Receive packet
             packet = this.receiver.recv();
 
-            // Pass data to transmission
+            // Pass data to tran-1smission
             t.setBuf(packet.getData());
             t.setDestAddr(packet.getDestAddr());
             t.setSourceAddr(packet.getSrcAddr());
@@ -220,7 +232,7 @@ public class LinkLayer implements Dot11Interface {
             if (val < -1) {
                 this.status = Status.ILLEGAL_ARGUMENT;
             } else {
-                this.beaconInterval = val;
+                this.clock.updateInterval(val * 1_000);
             }
             break;
         default:

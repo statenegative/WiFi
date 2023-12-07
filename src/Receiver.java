@@ -10,6 +10,7 @@ import rf.RF;
  */
 public class Receiver implements Runnable {
     private RF rf;
+    private LinkLayer linkLayer;
     private short mac;
     private Sender sender;
     private Clock clock;
@@ -22,8 +23,9 @@ public class Receiver implements Runnable {
      * Constructor.
      * @param rf The RF layer to listen and send on.
      */
-    public Receiver(RF rf, short mac, Sender sender, Clock clock, PrintWriter output) {
+    public Receiver(RF rf, LinkLayer linkLayer, short mac, Sender sender, Clock clock, PrintWriter output) {
         this.rf = rf;
+        this.linkLayer = linkLayer;
         this.mac = mac;
         this.sender = sender;
         this.clock = clock;
@@ -44,12 +46,22 @@ public class Receiver implements Runnable {
         while (!this.stop) {
             Packet packet = new Packet(this.rf.receive());
             if (packet.getFrameType() != Packet.FrameType.ACK) {
-                this.output.println("Received packet from " + packet.getSrcAddr());
+                if (this.linkLayer.getDebugLevel() == LinkLayer.DebugLevel.FULL) {
+                    this.output.println("Received packet from " + packet.getSrcAddr());
+                }
             } else {
-                this.output.println("Received ACK from " + packet.getSrcAddr());
+                if (this.linkLayer.getDebugLevel() == LinkLayer.DebugLevel.FULL) {
+                    this.output.println("Received ACK from " + packet.getSrcAddr());
+                }
             }
 
-            // Handle checksum
+            // Handle checksum :)
+            if (!packet.checksumValid()) {
+                if (this.linkLayer.getDebugLevel() == LinkLayer.DebugLevel.FULL) {
+                    this.output.println("Broken packet received.");
+                }
+                continue;
+            }
 
             // Ignore packets that aren't for this destination
             if (packet.isBroadcast() || packet.getDestAddr() == this.mac) {
@@ -57,13 +69,15 @@ public class Receiver implements Runnable {
                     if (packet.getFrameType() == Packet.FrameType.ACK) {
                         this.sender.setAcknowledgement(packet);
                     } else if (packet.getFrameType() == Packet.FrameType.BEACON) {
-                        //this.clock.receiveFrame(packet);
+                        this.clock.receiveFrame(packet);
                     } else {
                         packetQueue.put(packet);
 
                         // Send acknowledgement
                         if (!packet.isBroadcast()) {
-                            output.println("Sending ACK " + packet.getFrameNumber());
+                            if (this.linkLayer.getDebugLevel() == LinkLayer.DebugLevel.FULL) {
+                                this.output.println("Sending ACK " + packet.getFrameNumber() + " at " + clock.getTime());
+                            }
                             Packet ack = new Packet(Packet.FrameType.ACK, false,
                                 packet.getFrameNumber(), packet.getSrcAddr(), packet.getDestAddr(), new byte[0]);
                             this.acknowledger.send(ack);

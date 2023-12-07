@@ -34,7 +34,7 @@ public class LinkLayer implements Dot11Interface {
     private HashMap<Short, Short> frameNumbers;
 
     // Status code names with their associated values
-    private enum Status {
+    public enum Status {
         // Initial value if init was successful
         SUCCESS(1),
         // General error code
@@ -65,7 +65,7 @@ public class LinkLayer implements Dot11Interface {
     }
 
     // Level of debugging info to print
-    private enum DebugLevel {
+    public enum DebugLevel {
         // Don't print any debug messages
         NONE,
         // Only print errors
@@ -84,7 +84,7 @@ public class LinkLayer implements Dot11Interface {
         this.mac = mac;
         this.output = output;
         this.status = Status.SUCCESS;
-        this.debugLevel = DebugLevel.FULL;
+        this.debugLevel = DebugLevel.NONE;
         this.randomSlotSelection = true;
         this.frameNumbers = new HashMap<>();
 
@@ -99,11 +99,11 @@ public class LinkLayer implements Dot11Interface {
         this.clock = new Clock(this.rf, 10_000, this.mac);
 
         // Create sender
-        this.sender = new Sender(this.rf, this.clock, this.output);
+        this.sender = new Sender(this.rf, this, this.clock, this.output);
         new Thread(this.sender).start();
 
         // Create receiver
-        this.receiver = new Receiver(this.rf, this.mac, this.sender, this.clock, this.output);
+        this.receiver = new Receiver(this.rf, this, this.mac, this.sender, this.clock, this.output);
         new Thread(this.receiver).start();
     }
 
@@ -143,7 +143,7 @@ public class LinkLayer implements Dot11Interface {
         // Queue the packet to be transmitted
         boolean success = this.sender.send(packet);
         if (!success) {
-            
+            this.status = Status.INSUFFICIENT_BUFFER_SPACE;
             return 0;
         }
         return dataLen;
@@ -180,6 +180,14 @@ public class LinkLayer implements Dot11Interface {
      */
     public int status() {
         return this.status.value;
+    }
+
+    public void setStatus(Status status) {
+        this.status = status;
+    }
+
+    public DebugLevel getDebugLevel() {
+        return this.debugLevel;
     }
 
     /**

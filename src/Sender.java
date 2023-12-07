@@ -17,7 +17,7 @@ public class Sender implements Runnable {
     // The time we wait between checking if an acknowledgement has arrived
     private static final long ACK_WAIT_TIME = 50;
     // The total time we wait for an acknowledgement to arrive before it times out
-    private static final long TIMEOUT_DURATION = 15_000;
+    private final long TIMEOUT_DURATION;
     // DIFS wait time
     private final long DIFS;
     // Output stream to write to
@@ -26,6 +26,7 @@ public class Sender implements Runnable {
     boolean randomSlotSelection;
     
     private RF rf;
+    private LinkLayer linkLayer;
     private Clock clock;
     private LinkedBlockingQueue<Packet> packetQueue;
     private boolean stop;
@@ -36,8 +37,9 @@ public class Sender implements Runnable {
      * Constructor.
      * @param rf The RF layer to send packets on.
      */
-    public Sender(RF rf, Clock clock, PrintWriter output) {
+    public Sender(RF rf, LinkLayer linkLayer, Clock clock, PrintWriter output) {
         this.rf = rf;
+        this.linkLayer = linkLayer;
         this.clock = clock;
         this.output = output;
         this.packetQueue = new LinkedBlockingQueue<>();
@@ -48,6 +50,9 @@ public class Sender implements Runnable {
 
         // Define wait time value
         this.DIFS = this.rf.aSIFSTime + 2 * this.rf.aSlotTime;
+
+        // Define timeout value
+        this.TIMEOUT_DURATION = 7_500 + this.rf.aSlotTime;
     }
 
     /**
@@ -93,6 +98,10 @@ public class Sender implements Runnable {
                         count = cw - 1;
                     }
 
+                    if (this.linkLayer.getDebugLevel() == LinkLayer.DebugLevel.FULL) {
+                        this.output.println("Busy waiting: selected wait time of " + count + " from [0-" + (cw - 1) + "]");
+                    }
+
                     for (; count > 0; count--) {
                         // Slot wait
                         this.sleep(this.rf.aSlotTime);
@@ -105,12 +114,14 @@ public class Sender implements Runnable {
                 }
 
                 // Transmit packet
-                this.output.println("Transmitting packet " + packet.getFrameNumber());
                 transmitted = this.transmit(packet);
 
                 // If acknowledgement wasn't received
                 if (!transmitted) {
-                    this.output.println("Packet " + packet.getFrameNumber() + " timed out");
+                    if (this.linkLayer.getDebugLevel() == LinkLayer.DebugLevel.FULL) {
+                        this.output.println("Packet #" + packet.getFrameNumber() + " timed out at " + this.clock.getTime());
+                    }
+
                     // Rebuild packet with retransmission bit
                     packet = new Packet(packet.getFrameType(), true, packet.getFrameNumber(),
                         packet.getDestAddr(), packet.getSrcAddr(), packet.getData());
@@ -125,6 +136,16 @@ public class Sender implements Runnable {
                     retryCount++;
                 }
             } while (!transmitted && retryCount < this.rf.dot11RetryLimit);
+
+            // Set status
+            if (transmitted) {
+                this.linkLayer.setStatus(LinkLayer.Status.TX_DELIVERED);
+            } else {
+                if (this.linkLayer.getDebugLevel() == LinkLayer.DebugLevel.FULL) {
+                    this.output.println("Packet #" + packet.getFrameNumber() + " failed to send.");
+                }
+                this.linkLayer.setStatus(LinkLayer.Status.TX_FAILED);
+            }
         }
     }
 
@@ -174,11 +195,11 @@ public class Sender implements Runnable {
 
         // Transmit the packet and start timeout counter
         this.rf.transmit(packet.getBytes());
-        long timeout = this.rf.clock() + Sender.TIMEOUT_DURATION;
+        long timeout = this.clock.getTime() + this.TIMEOUT_DURATION;
 
         // Wait for acknowledgement to arrive
         if (!packet.isBroadcast()) {
-            while (this.ack == null && this.rf.clock() < timeout) {
+            while (this.ack == null && this.clock.getTime() < timeout) {
                 this.sleep(Sender.ACK_WAIT_TIME);
             }
         }
@@ -206,6 +227,10 @@ public class Sender implements Runnable {
             long currTime = this.clock.getTime() % 50;
             long waitTime = this.DIFS + (50 - currTime);
             this.sleep(waitTime);
+
+            if (this.linkLayer.getDebugLevel() == LinkLayer.DebugLevel.FULL) {
+                this.output.println("DIFS wait finished at " + this.clock.getTime());
+            }
 
             // Check if still idle
             idle = !this.rf.inUse();

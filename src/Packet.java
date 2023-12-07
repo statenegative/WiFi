@@ -4,6 +4,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.NoSuchElementException;
+import java.util.zip.CRC32;
 
 /**
  * 802.11~ packet.
@@ -62,16 +63,18 @@ public class Packet {
         this.destAddr = destAddr;
         this.srcAddr = srcAddr;
         this.data = data.clone();
-        this.crc = 0xFFFF;
 
         // Build frame
         short control = Packet.buildControlField(type, retransmission, frameNumber);
         ByteBuffer frame;
-        frame = ByteBuffer.allocate(10 + this.data.length);
+        frame = ByteBuffer.allocate(6 + this.data.length + 4);
         frame.putShort(control);
         frame.putShort(this.destAddr);
         frame.putShort(this.srcAddr);
         frame.put(this.data);
+        CRC32 crc32 = new CRC32();
+        crc32.update(frame.array(), 0, 6 + this.data.length);
+        this.crc = (int)crc32.getValue();
         frame.putInt(this.crc);
         this.frame = frame;
     }
@@ -144,6 +147,15 @@ public class Packet {
      */
     public boolean isBroadcast() {
         return this.destAddr == Packet.BROADCAST_ADDR;
+    }
+
+    /**
+     * @return Whether the checksum for this packet is valid.
+     */
+    public boolean checksumValid() {
+        CRC32 crc32 = new CRC32();
+        crc32.update(frame.array(), 0, 6 + this.data.length);
+        return this.crc == (int)crc32.getValue();
     }
 
     /**
